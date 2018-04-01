@@ -45,3 +45,10 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
+*.wav
+*.npy
+.idea/EmotionClassifier.iml
+.idea/workspace.xml
+.idea/misc.xml
+.idea/modules.xml
+.idea/EmotionClassifier.iml

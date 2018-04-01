@@ -110,6 +110,8 @@ def build_datasets(train_percentage=0.8, preproc=False):
 
     nb_classes = len(class_names)
     mel_dims = get_sample_dimensions(path=path)
+    #set time to about 3 seconds
+    #mel_dims[3]=100;
     # pre-allocate memory for speed (old method used np.concatenate, slow)
     X_train = np.zeros((total_train, mel_dims[1], mel_dims[2], mel_dims[3]))
     Y_train = np.zeros((total_train, nb_classes))

@@ -40,10 +40,35 @@ def preprocess_dataset(inpath="Audio/", outpath="Preproc/"):
             #start = timer()
             aud, sr = librosa.load(audio_path, sr=None)
             melgram = librosa.amplitude_to_db(librosa.feature.melspectrogram(aud, sr=sr, n_mels=96),
-                                           ref=1.0)[np.newaxis,np.newaxis,:,:]
+                                          ref=1.0)[np.newaxis,np.newaxis,:,:]
+            #melgram = librosa.amplitude_to_db(librosa.feature.mfcc(y=aud, sr=sr, n_mfcc=40),
+            #                               ref=1.0)[np.newaxis,np.newaxis,:,:]
+            # potential different representation
+            # stft = np.abs(librosa.stft(X))
+            # mfccs = librosa.feature.mfcc(y=aud, sr=sr, n_mfcc=40)
+            # chroma = np.mean(librosa.feature.chroma_stft(S=stft, sr=sample_rate).T,axis=0)
+            # mel = np.mean(librosa.feature.melspectrogram(X, sr=sample_rate).T,axis=0)
+            # contrast = np.mean(librosa.feature.spectral_contrast(S=stft, sr=sample_rate).T,axis=0)
+            # tonnetz = np.mean(librosa.feature.tonnetz(y=librosa.effects.harmonic(X), sr=sample_rate).T,axis=0)
             outfile = outpath + classname + '/' + infilename+'.npy'
-            print(melgram)
-            np.save(outfile,melgram)
+            #print(melgram)
+            if(melgram.shape[3] < 100):
+                melgram_segmentation = np.copy(melgram)
+                melgram_segmentation = np.resize(melgram_segmentation,(1,1,96,100))
+                np.save(outfile,melgram_segmentation)
+            else:
+                if(melgram.shape[3] % 100 == 0):
+                    segments_num = melgram.shape[3]//100
+                else:
+                    segments_num = melgram.shape[3]//100 + 1
+                melgram_segmentation = np.copy(melgram)
+                melgram_segmentation = np.resize(melgram_segmentation,(1,1,96,100*int(segments_num)))
+                #print (segments_num)
+                for i in range(segments_num):
+                    outfile_segmented = outpath + classname + '/' +str(i)+'-'+ infilename+'.npy'
+                    melgram_segment = melgram_segmentation[:,:,:,100*i:100*(i+1)]
+                    np.save(outfile_segmented,melgram_segment)
+
 
 if __name__ == '__main__':
     preprocess_dataset()

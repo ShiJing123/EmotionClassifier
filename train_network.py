@@ -15,10 +15,11 @@ import librosa
 import librosa.display
 
 from keras.models import Sequential, Model
+from keras.optimizers import SGD, Nadam, RMSprop
 from keras.layers import Input, Dense, TimeDistributed, LSTM, Dropout, Activation
 from keras.layers import Conv2D, MaxPooling2D, Flatten
 from keras.layers.normalization import BatchNormalization
-from keras.layers.advanced_activations import ELU
+from keras.layers.advanced_activations import ELU, LeakyReLU, PReLU
 from keras.callbacks import ModelCheckpoint
 from keras import backend
 from keras.utils import np_utils
@@ -94,7 +95,7 @@ because we want to make sure statistics in training & testing are as similar as 
 
 def build_datasets(train_percentage=0.8, preproc=False):
     if (preproc):
-        path = "Preproc/"
+        path = "Preproc_mfcc/"
     else:
         path = "audio/"
 
@@ -140,7 +141,7 @@ def build_datasets(train_percentage=0.8, preproc=False):
                 melgram = librosa.amplitude_to_db(librosa.feature.melspectrogram(aud, sr=sr, n_mels=96), ref=1.0)[
                           np.newaxis, np.newaxis, :, :]
 
-            melgram = melgram[:, :, :, 0:mel_dims[3]]  # just in case files are differnt sizes: clip to first file size
+            #melgram = melgram[:, :, :, 0:mel_dims[3]]  # just in case files are differnt sizes: clip to first file size
 
             # end = timer()
             # print("time = ",end - start)
@@ -148,16 +149,18 @@ def build_datasets(train_percentage=0.8, preproc=False):
                 # concatenate is SLOW for big datasets; use pre-allocated instead
                 # X_train = np.concatenate((X_train, melgram), axis=0)
                 # Y_train = np.concatenate((Y_train, this_Y), axis=0)
-                (a,b,c,d)  = np.shape((X_train))
-                melgram_resized = np.copy(melgram).resize((b,c,d))
-                X_train[train_count, :, :] = melgram_resized
+                # (a,b,c,d)  = np.shape((X_train))
+                # melgram_resized = np.copy(melgram).resize((b,c,d))
+                # X_train[train_count, :, :] = melgram_resized
+                X_train[train_count, :, :] = melgram
                 Y_train[train_count, :] = this_Y
                 paths_train.append(audio_path)  # list-appending is still fast. (??)
                 train_count += 1
             else:
-                (a,b,c,d)  = np.shape((X_test))
-                melgram_resized = np.copy(melgram).resize((b,c,d))
-                X_test[test_count, :, :] = melgram_resized
+                # (a,b,c,d)  = np.shape((X_test))
+                # melgram_resized = np.copy(melgram).resize((b,c,d))
+                # X_test[test_count, :, :] = melgram_resized
+                X_test[test_count, :, :] = melgram
                 Y_test[test_count, :] = this_Y
                 # X_test = np.concatenate((X_test, melgram), axis=0)
                 # Y_test = np.concatenate((Y_test, this_Y), axis=0)
@@ -173,10 +176,10 @@ def build_datasets(train_percentage=0.8, preproc=False):
 
 
 def build_model(X, Y, nb_classes):
-    nb_filters = 32  # number of convolutional filters to use
+    nb_filters = 16  # number of convolutional filters to use
     pool_size = (2, 2)  # size of pooling area for max pooling
     kernel_size = (3, 3)  # convolution kernel size
-    nb_layers = 4
+    nb_layers = 3
     input_shape = (1, X.shape[2], X.shape[3])
 
     model = Sequential()
@@ -188,12 +191,13 @@ def build_model(X, Y, nb_classes):
     for layer in range(nb_layers - 1):
         model.add(Conv2D(nb_filters, kernel_size, data_format = 'channels_first'))
         model.add(BatchNormalization(axis=1))
-        model.add(ELU(alpha=1.0))
+        model.add(LeakyReLU(alpha=0.3))
         model.add(MaxPooling2D(pool_size=pool_size))
-        model.add(Dropout(0.25))
+        model.add(Dropout(0.5))
 
     model.add(Flatten())
     model.add(Dense(128))
+    #model.add(LeakyReLU(alpha=0.3))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
     model.add(Dense(nb_classes))
@@ -208,9 +212,13 @@ if __name__ == '__main__':
     X_train, Y_train, paths_train, X_test, Y_test, paths_test, class_names, sr = build_datasets(preproc=True)
 
     # make the model
+    #optimizer = SGD(nesterov=True,lr=0.01, momentum=0., decay=0.)
+    optimizer = RMSprop(lr=0.001, rho=0.9, epsilon=None, decay=0.)
+    #optimizer = Nadam(lr = 0.002, beta_1 = 0.9, beta_2 = 0.999, epsilon = None, schedule_decay = 0.004)
     model = build_model(X_train, Y_train, nb_classes=len(class_names))
     model.compile(loss='categorical_crossentropy',
-                  optimizer='adadelta',
+                  #optimizer='rmsprop',
+                  optimizer=optimizer,
                   metrics=['accuracy'])
     model.summary()
 
@@ -229,10 +237,10 @@ if __name__ == '__main__':
     checkpointer = ModelCheckpoint(filepath=checkpoint_filepath, verbose=1, save_best_only=True)
 
     # train and score the model
-    batch_size = 128
-    nb_epoch = 100
-    model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
-              verbose=1, validation_data=(X_test, Y_test), callbacks=[checkpointer])
+    batch_size = 32
+    nb_epoch = 50
+    model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch,
+              verbose=0, validation_data=(X_test, Y_test), callbacks=[checkpointer])
     score = model.evaluate(X_test, Y_test, verbose=0)
     print('Test score:', score[0])
     print('Test accuracy:', score[1])
