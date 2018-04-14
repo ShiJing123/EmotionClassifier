@@ -1,16 +1,12 @@
 '''
-Author: Scott H. Hawley
 
-Based on paper,
+Based on  work by  Scott H. Hawley, who based it on a paper,
 A SOFTWARE FRAMEWORK FOR MUSICAL DATA AUGMENTATION
 Brian McFee, Eric J. Humphrey, and Juan P. Bello
 https://bmcfee.github.io/papers/ismir2015_augmentation.pdf
 
 This script can either be called as a standalone to operate on sound files (e.g., .wav),
 or it can be imported & called from elsewhere, e.g. prep_data.py.
-
-If you plan on using prep_data.py, then don't call this as a standalong. just let prep_data
-do its thing, unless you really want to hear what the augmented data files sound like.
 '''
 from __future__ import print_function
 import numpy as np
@@ -106,9 +102,10 @@ def augment_data(y, sr, n_augment = 0, allow_speedandpitch = True, allow_pitch =
     return mods
 
 
-def main(args):
+def main():
     np.random.seed(1)
-
+    file = 'Audio/'
+    N = 1
     # if args.test:  # just testing the augment_data.py on sample data
     #     y, sr = librosa.load(librosa.util.example_audio_file(),sr=None)
     #     librosa.output.write_wav("orig.wav",y,sr)
@@ -119,19 +116,24 @@ def main(args):
     #     sys.exit()
 
     # read in every file on the list, augment it lots of times, output all those
-    for infile in args.file:
-        if os.path.isfile(infile):
-            print("Operating on file",infile,".  Requesting ",args.N," mods...")
-            y, sr = librosa.load(infile, sr=None)
-            mods = augment_data(y, sr, n_augment=args.N)
-            for i in range(len(mods)-1):
-                filename_no_ext = os.path.splitext(infile)[0]
-                ext = os.path.splitext(infile)[1]
-                outfile = filename_no_ext+"_aug"+str(i+1)+ext
-                print("      mod = ",i+1,": saving file",outfile,"...")
-                librosa.output.write_wav(outfile,mods[i+1],sr)
-        else:
-            print(" *** File",infile,"does not exist.  Skipping.")
+    class_names = os.listdir(file)
+    for idx, classname in enumerate(class_names):   # go through the subdirs
+        class_files = os.listdir(file+classname)
+        for idx2, infile in enumerate(class_files):
+            audio_path = file + classname + '/' + infile
+            if os.path.isfile(audio_path):
+                print("Operating on file",infile,".  Requesting ",N," mods...")
+                y, sr = librosa.load(audio_path, sr=None)
+                mods = augment_data(y, sr, n_augment=N)
+                for i in range(len(mods)-1):
+                    filename_no_ext = os.path.splitext(infile)[0]
+                    ext = os.path.splitext(infile)[1]
+                    outfile = filename_no_ext+"_aug"+str(i+1)+ext
+                    print("      mod = ",i+1,": saving file",outfile,"...")
+                    outfile = file + classname + '/' + outfile
+                    librosa.output.write_wav(outfile,mods[i+1],sr)
+            else:
+                print(" *** File",infile,"does not exist.  Skipping.")
 
 
 

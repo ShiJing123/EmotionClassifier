@@ -1,12 +1,15 @@
 from __future__ import print_function
 
+from keras.applications import VGG16
+from keras.preprocessing.image import ImageDataGenerator
+
 import numpy as np
 import matplotlib.pyplot as plt
 import librosa
 import librosa.display
 
 from keras.models import Sequential, Model
-from keras.optimizers import SGD, Nadam, RMSprop
+from keras.optimizers import SGD, Nadam, RMSprop, Adam
 from keras.layers import Input, Dense, TimeDistributed, LSTM, Dropout, Activation
 from keras.layers import Conv2D, MaxPooling2D, Flatten
 from keras.layers.normalization import BatchNormalization
@@ -86,7 +89,7 @@ because we want to make sure statistics in training & testing are as similar as 
 
 def build_datasets(train_percentage=0.8, preproc=False):
     if (preproc):
-        path = "Preproc_with_augment/"
+        path = "Preproc/"
     else:
         path = "audio/"
 
@@ -100,9 +103,9 @@ def build_datasets(train_percentage=0.8, preproc=False):
 
     # pre-allocate memory for speed (old method used np.concatenate, slow)
     mel_dims = get_sample_dimensions(path=path)  # Find out the 'shape' of each data file
-    X_train = np.zeros((total_train, mel_dims[1], mel_dims[2], mel_dims[3]))
+    X_train = np.zeros((total_train,  mel_dims[2], mel_dims[3]))
     Y_train = np.zeros((total_train, nb_classes))
-    X_test = np.zeros((total_test, mel_dims[1], mel_dims[2], mel_dims[3]))
+    X_test = np.zeros((total_test,  mel_dims[2], mel_dims[3]))
     Y_test = np.zeros((total_test, nb_classes))
     paths_train = []
     paths_test = []
@@ -143,7 +146,7 @@ def build_datasets(train_percentage=0.8, preproc=False):
                 # (a,b,c,d)  = np.shape((X_train))
                 # melgram_resized = np.copy(melgram).resize((b,c,d))
                 # X_train[train_count, :, :] = melgram_resized
-                X_train[train_count, :, :] = melgram
+                X_train[train_count,  :] = melgram
                 Y_train[train_count, :] = this_Y
                 paths_train.append(audio_path)  # list-appending is still fast. (??)
                 train_count += 1
@@ -151,7 +154,7 @@ def build_datasets(train_percentage=0.8, preproc=False):
                 # (a,b,c,d)  = np.shape((X_test))
                 # melgram_resized = np.copy(melgram).resize((b,c,d))
                 # X_test[test_count, :, :] = melgram_resized
-                X_test[test_count, :, :] = melgram
+                X_test[test_count,  :] = melgram
                 Y_test[test_count, :] = this_Y
                 # X_test = np.concatenate((X_test, melgram), axis=0)
                 # Y_test = np.concatenate((Y_test, this_Y), axis=0)
@@ -166,71 +169,46 @@ def build_datasets(train_percentage=0.8, preproc=False):
     return X_train, Y_train, paths_train, X_test, Y_test, paths_test, class_names, sr
 
 
-def build_model(X, Y, nb_classes):
-    nb_filters = 16  # number of convolutional filters to use
-    pool_size = (1, 1)  # size of pooling area for max pooling
-    kernel_size = (3, 3)  # convolution kernel size
-    nb_layers = 4
-    input_shape = (1, X.shape[2], X.shape[3])
-
+def build_model(X, nb_classes):
+    input_shape = (X.shape[1], X.shape[2])
     model = Sequential()
-    model.add(Conv2D(nb_filters, kernel_size,
-                            padding='valid', input_shape=input_shape, data_format = 'channels_first'))
-    model.add(BatchNormalization(axis=1))
-    model.add(Activation('relu'))
 
-    for layer in range(nb_layers - 1):
-        model.add(Conv2D(nb_filters, kernel_size, data_format = 'channels_first'))
-        model.add(BatchNormalization(axis=1))
-        model.add(LeakyReLU(alpha=0.3))
-        model.add(MaxPooling2D(pool_size=pool_size))
-        model.add(Dropout(0.25))
+    # returns a sequence of vectors of dimension 256
+    model.add(LSTM(256, return_sequences=True, input_shape=input_shape))
 
-    model.add(Flatten())
-    model.add(Dense(128, activation='relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(nb_classes))
-    model.add(Activation("softmax"))
-    return model
+    model.add(Dropout(0.2))
+
+    # return a single vector of dimension 128
+    model.add(LSTM(128))
+
+    model.add(Dropout(0.2))
+
+    # apply softmax to output
+    model.add(Dense(nb_classes, activation='softmax'))
+    return  model
 
 
 if __name__ == '__main__':
     np.random.seed(1)
 
     # get the data
-    X_train, Y_train, paths_train, X_test, Y_test, paths_test, class_names, sr = build_datasets(preproc=True)
+    x_train, y_train, paths_train, x_test, y_test, paths_test, class_names, sr = build_datasets(preproc=True)
+    model = build_model(x_train, len(class_names))
 
-    # make the model
-    #optimizer = SGD(nesterov=True,lr=0.01, momentum=0., decay=0.)
-    optimizer = RMSprop(lr=0.001, rho=0.9, epsilon=None, decay=0.)
-    #optimizer = Nadam(lr = 0.002, beta_1 = 0.9, beta_2 = 0.999, epsilon = None, schedule_decay = 0.004)
-    model = build_model(X_train, Y_train, nb_classes=len(class_names))
-    model.compile(loss='categorical_crossentropy',
-                  #optimizer='rmsprop',
-                  optimizer=optimizer,
-                  metrics=['accuracy'])
-    model.summary()
 
-    # Initialize weights using checkpoint if it exists. (Checkpointing requires h5py)
-    load_checkpoint = True
-    checkpoint_filepath = 'weights.hdf5'
-    if (load_checkpoint):
-        print("Looking for previous weights...")
-        if (isfile(checkpoint_filepath)):
-            print('Checkpoint file detected. Loading weights.')
-            model.load_weights(checkpoint_filepath)
-        else:
-            print('No checkpoint file detected.  Starting from scratch.')
-    else:
-        print('Starting from scratch (no checkpoint)')
-    checkpointer = ModelCheckpoint(filepath=checkpoint_filepath, verbose=1, save_best_only=True)
+    model.compile(optimizer=Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
+
+    # callback koji snima tezine modela
+    mc = ModelCheckpoint('weights.h5', monitor='val_loss', verbose=1, save_best_only=True)
+    # callback koji prekida obucavanje u slucaju overfitting-a
     es = EarlyStopping(monitor='val_loss', patience=10)
 
-    # train and score the model
-    batch_size = 128
+    batch_size = 32
     nb_epoch = 50
-    model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch,
-              verbose=0, validation_data=(X_test, Y_test), callbacks=[checkpointer, es])
-    score = model.evaluate(X_test, Y_test, verbose=0)
+
+    model.fit(x_train, y_train, batch_size=batch_size, epochs=nb_epoch,
+               verbose=0, validation_data=(x_test, y_test), callbacks=[mc,es])
+
+    score = model.evaluate(x_test, y_test, verbose=0)
     print('Test score:', score[0])
     print('Test accuracy:', score[1])

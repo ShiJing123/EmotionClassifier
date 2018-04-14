@@ -12,7 +12,7 @@ def get_class_names(path="Audio/"):  # class names are subdirectory names in Sam
     class_names = os.listdir(path)
     return class_names
 
-def preprocess_dataset(inpath="Audio/", outpath="Preproc/"):
+def preprocess_dataset(inpath="Audio/", outpath="Preproc_with_augment/"):
 
     if not os.path.exists(outpath):
         os.mkdir( outpath, 0o0755 );   # make a new directory for preproc'd files
@@ -39,7 +39,7 @@ def preprocess_dataset(inpath="Audio/", outpath="Preproc/"):
                        ", file ",idx2+1," of ",n_load,": ",audio_path,sep="")
             #start = timer()
             aud, sr = librosa.load(audio_path, sr=None)
-            melgram = librosa.amplitude_to_db(librosa.feature.melspectrogram(aud, sr=sr, n_mels=96),
+            melgram = librosa.amplitude_to_db(librosa.feature.melspectrogram(aud, sr=sr, n_mels=128),
                                           ref=1.0)[np.newaxis,np.newaxis,:,:]
             #melgram = librosa.amplitude_to_db(librosa.feature.mfcc(y=aud, sr=sr, n_mfcc=40),
             #                               ref=1.0)[np.newaxis,np.newaxis,:,:]
@@ -54,7 +54,7 @@ def preprocess_dataset(inpath="Audio/", outpath="Preproc/"):
             #print(melgram)
             if(melgram.shape[3] < 100):
                 melgram_segmentation = np.copy(melgram)
-                melgram_segmentation = np.resize(melgram_segmentation,(1,1,96,100))
+                melgram_segmentation = np.resize(melgram_segmentation,(1,1,128,100))
                 np.save(outfile,melgram_segmentation)
             else:
                 if(melgram.shape[3] % 100 == 0):
@@ -62,7 +62,7 @@ def preprocess_dataset(inpath="Audio/", outpath="Preproc/"):
                 else:
                     segments_num = melgram.shape[3]//100 + 1
                 melgram_segmentation = np.copy(melgram)
-                melgram_segmentation = np.resize(melgram_segmentation,(1,1,96,100*int(segments_num)))
+                melgram_segmentation = np.resize(melgram_segmentation,(1,1,128,100*int(segments_num)))
                 #print (segments_num)
                 for i in range(segments_num):
                     outfile_segmented = outpath + classname + '/' +str(i)+'-'+ infilename+'.npy'
