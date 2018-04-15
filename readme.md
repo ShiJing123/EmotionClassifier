@@ -1,3 +1,4 @@
+This code was tested using keras, tensorflow, and CUDA. Graphic card used to train networks was NVidia Geforce GTX 1060 6gb.
 Running this project requires the IEMOCAP dataset.
 
 Use the data_sort.py script to sort and label the data from the IEMOCAP dataset.

@@ -167,8 +167,8 @@ def build_datasets(train_percentage=0.8, preproc=False):
 
 
 def build_model(X, Y, nb_classes):
-    nb_filters = 16  # number of convolutional filters to use
-    pool_size = (1, 1)  # size of pooling area for max pooling
+    nb_filters = 32  # number of convolutional filters to use
+    pool_size = (2, 2)  # size of pooling area for max pooling
     kernel_size = (3, 3)  # convolution kernel size
     nb_layers = 4
     input_shape = (1, X.shape[2], X.shape[3])
@@ -227,7 +227,7 @@ if __name__ == '__main__':
     es = EarlyStopping(monitor='val_loss', patience=10)
 
     # train and score the model
-    batch_size = 128
+    batch_size = 64
     nb_epoch = 50
     model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch,
               verbose=0, validation_data=(X_test, Y_test), callbacks=[checkpointer, es])
